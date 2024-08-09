@@ -35,6 +35,7 @@ const faqQuestionRoutes = require("./routes/faq-question-routes.js"); // Promo r
 const notification = require("./routes/notification-routes.js"); // Promo routes ko include kar rahe hain
 const favourite = require("./routes/favourite-routes.js"); // Promo routes ko include kar rahe hain
 const refundContactFromRoutes = require("./routes/refund-contact-form-routes.js");
+const homePageSelectedRoutes = require("./routes/home-page-selected-book-routes.js");
 
 
 const app = express();
@@ -68,6 +69,7 @@ app.use("/api", faqQuestionRoutes); // Promo routes ko set kar rahe hain
 app.use("/api", notification); // Promo routes ko set kar rahe hain
 app.use("/api", favourite); // Promo routes ko set kar rahe hain
 app.use("/api", refundContactFromRoutes); // Promo routes ko set kar rahe hain
+app.use("/api", homePageSelectedRoutes); // Promo routes ko set kar rahe hain
 
 // Cron job to handle plan expiry and auto-renewal
 cron.schedule("0 0 * * *", async () => {

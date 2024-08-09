@@ -5,6 +5,9 @@ const CardDetails = require("../models/Card-Details-Model.js");
 const refundContactFrom = require("../models/Refund-Contact-Form-Model.js");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const Book = require("../models/BookModel.js");
+const Category = require("../models/CategoryModel.js");
+const homePageSelectedBookSchema = require("../models/Home-Page-Selected-Model.js");
 
 const registerSabAdmin = async (req, res) => {
   try {
@@ -249,6 +252,78 @@ const getAllUsersRefundDetails = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+const homePageSelectedRomance = async (req, res, next) => {
+  try {
+      // Extract required fields from request body
+      const { bookId, categoryId } = req.body;
+      console.log("bookId :", bookId);
+
+      // Check if bookId is provided
+      if (!bookId || !categoryId) {
+          return res.status(400).json({
+              success: false,
+              message: 'book and category id is required.'
+          });
+      }
+
+
+      // Fetch primary category details
+      const bookCategory = await Book.findById(bookId);
+      if (!bookCategory) {
+          return res.status(404).json({
+              success: false,
+              message: 'Book not found.'
+          });
+      }
+      console.log("bookCategory :", bookCategory);
+
+      const category = await Category.findById(categoryId);
+      if (!category) {
+          return res.status(404).json({
+              success: false,
+              message: 'Category not found.'
+          });
+      }
+      console.log("category :", category);
+
+
+
+
+      // // Check for required fields
+      // if (!bookTitle || !authorName || !primaryCategory || !shortDescription || !longDescription || !imageUpload.url || !audioUpload.url) {
+      //     return res.status(400).json({
+      //         success: false,
+      //         message: "All fields are required"
+      //     });
+      // }
+
+
+      // Create a new Banner instance
+      const createBanner = await homePageSelectedBookSchema.create({
+          bookId: bookCategory._id, // Assign bookId as the _id of BookCategory
+          categoryId: category._id, // Assign bookId as the _id of BookCategory
+      });
+      console.log("createBanner: ", createBanner);
+      // // Save the new banner to the database
+      // const savedBanner = await createBanner.save();
+      // console.log("savedBanner: ", savedBanner);
+
+      res.status(201).json({
+          success: true,
+          message: "Hoem page selected book created successfully",
+          createBanner
+      });
+
+  } catch (error) {
+      console.error("Error:", error);
+      res.status(500).json({
+          success: false,
+          message: "Failed to create banner",
+          error: error.message // Optional: Send detailed error message
+      });
+  }
+}
 
 module.exports = {
   registerSabAdmin,
