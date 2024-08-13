@@ -68,10 +68,26 @@ const userSchema = new mongoose.Schema(
 
     cancelMemberShip: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
+    bookDownload: {
+      type: Number,
+      default: 0,
+    },
+    audioBookDownload: {
+      type: Number,
+      default: 0,
+    },
+    downloadsThisMonth: {
+      type: Number,
+      default: 0,
+    },
+    currentMonth: {
+      type: Number,
+      default: new Date().getMonth() + 1, // Default to current month
+    },
   },
-  { timestamps: true }
+  { timestamps: true } // Created and updated timestamps automatically manage honge
 );
 
 // Create a 2dsphere index on the location field

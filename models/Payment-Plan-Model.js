@@ -31,7 +31,7 @@ const PaymentPlanSchema = new Schema(
     },
     duration: {
       // New field for duration of the plan
-      type: Number, // Duration in months
+      type: String, // Duration in months
       required: true,
     },
   },

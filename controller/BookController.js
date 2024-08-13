@@ -1032,94 +1032,102 @@ const updateBook = async (req, res) => {
   }
 };
 
-const getAllRomanceBooks = async (req, res, next) => {
-  try {
-    // Romance category ko find karna
-    const romanceCategory = await Category.findOne({ name: "Romance" }).exec();
+// const getAllRomanceBooks = async (req, res, next) => {
+//   try {
+//     // Romance category ko find karna
+//     const romanceCategory = await Category.findOne({ name: "Romance" }).exec();
 
-    if (!romanceCategory) {
-      return res.status(404).json({
-        success: false,
-        message: "Romance category not found",
-      });
-    }
+//     if (!romanceCategory) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Romance category not found",
+//       });
+//     }
 
-    // Romance books ko find karna
-    const romanceBooks = await Book.find({
-      primaryCategory: romanceCategory._id,
-    })
-      .populate("primaryCategory", "id name")
-      .populate("secondaryCategory", "id name")
-      .exec();
+//     // Romance books ko find karna
+//     const romanceBooks = await Book.find({
+//       primaryCategory: romanceCategory._id,
+//     })
+//       .populate("primaryCategory", "id name")
+//       .populate("secondaryCategory", "id name")
+//       .exec();
 
-    if (romanceBooks.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Romance books not found",
-      });
-    }
+//     if (romanceBooks.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Romance books not found",
+//       });
+//     }
 
-    // User ke token ko check karna
-    const token = req.header("Authorization");
-    let userPlan = null;
-    if (token) {
-      const user = await User.findOne({ downloadToken: token }).populate(
-        "paymentPlanId"
-      );
-      if (user) {
-        userPlan = user.paymentPlanId;
-      }
-    }
+//     // User ke token ko check karna
+//     const token = req.header("Authorization");
+//     console.log("Download Token: ", token);
 
-    // Favourite books ko find karna
-    const favouriteBooks = await favouriteSchema
-      .find({ isFavourite: true })
-      .select("_id bookId")
-      .exec();
-    const favouriteBookIds = favouriteBooks.map((fav) => ({
-      favoriteId: fav._id.toString(),
-      bookId: fav.bookId.toString(),
-    }));
+//     let userPlan = null;
+//     let userDownloadsAvailable = false;
 
-    // Romance books ko map karke unka isFavourite aur favoriteId field set karna
-    const romanceBooksWithFavoriteStatus = romanceBooks.map((book) => {
-      const favouriteBook = favouriteBookIds.find(
-        (fav) => fav.bookId === book._id.toString()
-      );
+//     if (token) {
+//       const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+//       const user = await User.findById(decodedToken.userId).populate(
+//         "paymentPlanId"
+//       );
 
-      const bookData = {
-        ...book._doc,
-        isFavourite: !!favouriteBook,
-        favoriteId: favouriteBook ? favouriteBook.favoriteId : null,
-      };
+//       console.log("User Found: ", user);
 
-      // User plan aur download counts ko check karke URLs conditionally show karna
-      // Yeh condition add ki gayi hai:
-      if (
-        !token ||
-        !userPlan ||
-        userPlan.bookDownload <= 0 ||
-        userPlan.audioBookDownload <= 0
-      ) {
-        bookData.epub = undefined;
-        bookData.mobi = undefined;
-        bookData.pdf = undefined;
-      }
+//       if (user && user.paymentPlanId && user.planExpiryDate > new Date()) {
+//         userPlan = user.paymentPlanId;
+//         userDownloadsAvailable =
+//           user.bookDownload > 0 && user.audioBookDownload > 0;
+//       }
+//       console.log("User Plan: ", userPlan); // Debugging line to check user plan details
+//     }
 
-      return bookData;
-    });
+//     // Favourite books ko find karna
+//     const favouriteBooks = await favouriteSchema
+//       .find({ isFavourite: true })
+//       .select("_id bookId")
+//       .exec();
+//     const favouriteBookIds = favouriteBooks.map((fav) => ({
+//       favoriteId: fav._id.toString(),
+//       bookId: fav.bookId.toString(),
+//     }));
 
-    res.status(200).json({
-      success: true,
-      data: romanceBooksWithFavoriteStatus,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
-  }
-};
+//     // Romance books ko map karke unka isFavourite aur favoriteId field set karna
+//     const romanceBooksWithFavoriteStatus = romanceBooks.map((book) => {
+//       const favouriteBook = favouriteBookIds.find(
+//         (fav) => fav.bookId === book._id.toString()
+//       );
+
+//       const bookData = {
+//         ...book._doc,
+//         isFavourite: !!favouriteBook,
+//         favoriteId: favouriteBook ? favouriteBook.favoriteId : null,
+//       };
+
+//       // URLs ko conditionally show karna
+//       if (userPlan && userDownloadsAvailable) {
+//         return bookData; // URLs ko show karo agar user ka plan valid hai aur downloads available hain
+//       } else {
+//         return {
+//           ...bookData,
+//           epub: undefined,
+//           mobi: undefined,
+//           pdf: undefined,
+//         };
+//       }
+//     });
+
+//     res.status(200).json({
+//       success: true,
+//       data: romanceBooksWithFavoriteStatus,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//     });
+//   }
+// };
 
 const getAllBillionaireBooks = async (req, res, next) => {
   try {
@@ -1159,6 +1167,130 @@ const getAllBillionaireBooks = async (req, res, next) => {
     });
   } catch (error) {
     console.log("error :", error);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+const jwt = require("jsonwebtoken");
+const dotenv = require("dotenv");
+
+// Load environment variables
+dotenv.config();
+
+const validateUser = async (token) => {
+  try {
+    if (!token) {
+      console.log("Token not provided.");
+      return { userPlan: null, userDownloadsAvailable: false };
+    }
+
+    // Token ko verify karna
+    const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("decodedToken: ", decodedToken);
+
+    const user = await User.findById(decodedToken.userId).populate(
+      "paymentPlanId"
+    );
+    console.log("User Data: ", user);
+
+    if (user && user.paymentPlanId && user.planExpiryDate > new Date()) {
+      return {
+        userPlan: user.paymentPlanId,
+        userDownloadsAvailable:
+          user.bookDownload > 0 && user.audioBookDownload > 0,
+      };
+    } else {
+      return { userPlan: null, userDownloadsAvailable: false };
+    }
+  } catch (error) {
+    console.error("Token verification error:", error);
+    return { userPlan: null, userDownloadsAvailable: false };
+  }
+};
+
+const getAllRomanceBooks = async (req, res, next) => {
+  try {
+    // Romance category ko find karna
+    const romanceCategory = await Category.findOne({ name: "Romance" }).exec();
+
+    if (!romanceCategory) {
+      return res.status(404).json({
+        success: false,
+        message: "Romance category not found",
+      });
+    }
+
+    // Romance books ko find karna
+    const romanceBooks = await Book.find({
+      primaryCategory: romanceCategory._id,
+    })
+      .populate("primaryCategory", "id name")
+      .populate("secondaryCategory", "id name")
+      .exec();
+
+    if (romanceBooks.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Romance books not found",
+      });
+    }
+
+      // User ke token ko check karna
+      const token = req.header("Authorization");
+      console.log("Download Token: ", token);
+
+    const validation = await validateUser(token);
+    const userPlan = validation.userPlan;
+    const userDownloadsAvailable = validation.userDownloadsAvailable;
+
+    console.log("Validation Result: ", validation);
+    console.log("User Plan: ", userPlan);
+    console.log("User Downloads Available: ", userDownloadsAvailable);
+
+    // Favourite books ko find karna
+    const favouriteBooks = await favouriteSchema
+      .find({ isFavourite: true })
+      .select("_id bookId")
+      .exec();
+    const favouriteBookIds = favouriteBooks.map((fav) => ({
+      favoriteId: fav._id.toString(),
+      bookId: fav.bookId.toString(),
+    }));
+
+    // Romance books ko map karke unka isFavourite aur favoriteId field set karna
+    const romanceBooksWithFavoriteStatus = romanceBooks.map((book) => {
+      const favouriteBook = favouriteBookIds.find(
+        (fav) => fav.bookId === book._id.toString()
+      );
+
+      const bookData = {
+        ...book._doc,
+        isFavourite: !!favouriteBook,
+        favoriteId: favouriteBook ? favouriteBook.favoriteId : null,
+      };
+
+      // URLs ko conditionally show karna
+      if (userPlan && userDownloadsAvailable) {
+        return bookData; // Show URLs if user has a valid plan and downloads available
+      } else {
+        return {
+          ...bookData,
+          pdfUpdate: undefined,
+          epubUpload: undefined,
+          kindleMobiUpload: undefined,
+        };
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: romanceBooksWithFavoriteStatus,
+    });
+  } catch (error) {
+    console.error("Error in getAllRomanceBooks:", error);
     res.status(500).json({
       success: false,
       message: "Server Error",

@@ -3,7 +3,7 @@ const { buyAndProcessPayment, cancelMembership, getAllCancelMemberShip, getAllRe
 
 const router = express.Router();
 
-router.post('/buy-and-process-payment', buyAndProcessPayment); // Payment processing endpoint
+// router.post('/buy-and-process-payment', buyAndProcessPayment); // Payment processing endpoint
 router.post('/cancel-membership', cancelMembership); // Membership cancellation endpoint
 router.get('/get-all-cancel-member-ship', getAllCancelMemberShip); // getAllCancelMemberShip all users details
 router.get('/get-all-remaning-dowloads/:id', getAllRemaningBooks); // getAllCancelMemberShip all users details

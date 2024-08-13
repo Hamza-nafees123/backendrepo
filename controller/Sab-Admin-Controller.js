@@ -220,9 +220,12 @@ const processRefund = async (req, res) => {
     // Update user document
     user.paymentPlanId = null;
     user.cardDetailsId = null;
-    user.remainingDownloads = null;
+    user.remainingDownloads = 0;
     user.cancelMemberShip = true; // Set cancelMemberShip to true
-
+    user.autoRenew = false; // Auto renew ko false set karo
+    user.bookDownload = 0;
+    user.audioBookDownload = 0;
+    user.downloadsThisMonth = 0;
     // Save the updated user
     const updatedUser = await user.save();
     console.log("Updated user: ", updatedUser);

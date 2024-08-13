@@ -1,17 +1,50 @@
-//function card details ko save karta hai, promo code ka discount apply karta hai aur user ke plan ko update karta hai.
-//cancelMembership function user ke membership aur card details ko cancel karta hai aur database se remove karta hai.
-
 const User = require("../models/UserModel.js");
-// const PaymentPlan = require('../models/Payment-Plan-Model.js');
-const paymentPlanModel = require("../models/Payment-Plan-Model.js");
-const CouponCodeDiscount = require("../models/Promo-code-Model.js");
 const CardDetails = require("../models/Card-Details-Model.js");
-const CancelMembership = require("../models/Cancel-Member-Ship-Model.js");
+const paymentPlanModel = require("../models/Payment-Plan-Model.js");
 const crypto = require("crypto"); // Token generate karne ke liye
+const cron = require("node-cron");
+// const PaymentPlan = require('../models/Payment-Plan-Model.js');
+const CouponCodeDiscount = require("../models/Promo-code-Model.js");
+const CancelMembership = require("../models/Cancel-Member-Ship-Model.js");
 const AudioBook = require("../models/Audio-Books.Model.js");
 const Book = require("../models/BookModel");
 const mongoose = require("mongoose");
-const cron = require("node-cron");
+// const parseDuration = require("./Payment-plan-controller.js");
+
+// // Card Details Validation Function
+// const validateCardDetails = (cardDetails) => {
+//   const numberValidation = cardValidator.number(cardDetails.cardNumber);
+//   console.log("numberValidation: ", numberValidation);
+//   const expiryValidation = cardValidator.expirationDate(cardDetails.expiryDate);
+//   console.log("expiryValidation: ", expiryValidation);
+//   const cvvValidation = cardValidator.cvv(cardDetails.cvv);
+//   console.log("cvvValidation: ", cvvValidation);
+
+//   if (!numberValidation.isValid) {
+//     throw new Error("Invalid card number.");
+//   }
+//   if (!expiryValidation.isValid) {
+//     throw new Error("Invalid expiry date.");
+//   }
+//   if (!cvvValidation.isValid) {
+//     throw new Error("Invalid CVV.");
+//   }
+// };
+
+// // Simulated Payment Processing Function
+// const processPayment = async (cardDetails, amount) => {
+//   // Yeh simulated function hai. Real-world mein yahan payment gateway integrate hoga.
+//   // Abhi hum assume karte hain ke card mein hamesha sufficient funds hain.
+//   // Agar funds insufficient honge toh error throw karenge.
+
+//   // For simulation, let's assume cards ending with '0000' have insufficient funds
+//   if (cardDetails.cardNumber.endsWith("0000")) {
+//     throw new Error("Insufficient funds in the card.");
+//   }
+
+//   // Payment successful
+//   return true;
+// };
 
 // const processPayment = async (req, res) => {
 //     const { userId, paymentPlanId, cardDetails, promoCode } = req.body;
@@ -117,15 +150,12 @@ const buyAndProcessPayment = async (req, res) => {
     const newPlan = await paymentPlanModel.findById(paymentPlanId);
     console.log("newPlan :", newPlan);
 
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (!newPlan) return res.status(404).json({ message: "Plan not found" });
+    if (!user || !newPlan)
+      return res.status(404).json({ message: "User or Plan not found" });
 
-    // // Validate duration
-    // const durationInMonths = parseInt(newPlan.duration, 10);
-    // if (isNaN(durationInMonths) || durationInMonths <= 0) {
-    //     return res.status(400).json({ message: "Invalid duration" });
-    // }
-    // console.log("durationInMonths: ", durationInMonths);
+    // Duration parse karo
+    const { duration, unit } = parseDuration(newPlan.duration);
+    // console.log("duration, unit: ", newPlan.duration);
 
     // Agar promoCode diya hai, to uski discount ko check karte hain aur final price ko update karte hain.
     let finalPrice = parseFloat(newPlan.actualPrice);
@@ -148,6 +178,12 @@ const buyAndProcessPayment = async (req, res) => {
           .json({ message: "Invalid or expired promo code." });
       }
     }
+
+    // Card details validate karo
+    validateCardDetails(cardDetails);
+
+    // Payment process karo
+    await processPayment(cardDetails, finalPrice);
 
     // Agar user ke pass purane card details hain, to unko delete karte hain.
     if (user.cardDetailsId) {
@@ -179,6 +215,10 @@ const buyAndProcessPayment = async (req, res) => {
         bookDownload: newPlan.bookDownload,
         audioBookDownload: newPlan.audioBookDownload,
       });
+      console.log(
+        "Updated previous plan with new download counts",
+        previousPlan
+      );
     }
 
     // User ke remaining downloads update karo
@@ -195,15 +235,37 @@ const buyAndProcessPayment = async (req, res) => {
 
     // User ke remaining downloads update karo aur expiry date set karo
     // user.remainingDownloads = newPlan.bookDownload + newPlan.audioBookDownload;
+
+    // const currentDate = new Date();
+    // console.log("currentDate: ", currentDate);
+    // const expiryDate = new Date(
+    //   currentDate.setMonth(currentDate.getMonth() + newPlan.duration)
+    // );
+    // console.log("expiryDate: ", expiryDate);
+    // user.planExpiryDate = expiryDate;
+    // user.paymentPlanId = paymentPlanId;
+    // user.autoRenew = !!user.cardDetailsId;
+    // user.downloadToken = crypto.randomBytes(50).toString("hex");
+    // user.cardDetailsId = card._id;
+
+    // Plan expiry date set karo
     const currentDate = new Date();
-    const expiryDate = new Date(
-      currentDate.setMonth(currentDate.getMonth() + newPlan.duration)
-    );
+    let expiryDate;
+    if (unit === "month") {
+      expiryDate = new Date(
+        currentDate.setMonth(currentDate.getMonth() + duration)
+      );
+    } else if (unit === "minutes") {
+      expiryDate = new Date(currentDate.getTime() + duration * 60000);
+    }
+
+    // User details update karo
     user.planExpiryDate = expiryDate;
     user.paymentPlanId = paymentPlanId;
-    user.autoRenew = !!user.cardDetailsId;
+    user.autoRenew = true; // Assume karo user ne auto-renew on rakha hai
     user.downloadToken = crypto.randomBytes(50).toString("hex");
     user.cardDetailsId = card._id;
+    user.remainingDownloads = newPlan.bookDownload + newPlan.audioBookDownload;
 
     // Updated user ko save karo
     await user.save();
@@ -336,64 +398,172 @@ const cancelMembership = async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    if (user && user.paymentPlanId) {
-      // Plan ka duration retrieve karen
-      const planDuration = user.paymentPlanId.duration; // Assuming duration is in days
-      console.log("cancel member ship user duration: ", planDuration);
+    // if (user && user.paymentPlanId) {
+    //   // Plan duration ko retrieve karen aur usay minutes, hours, days, ya months mein convert karen
+    //   const planDurationStr = user.paymentPlanId.duration; // Assuming duration is in a format like '5 minutes', '1 month', etc.
+    //   console.log("cancel member ship user duration: ", planDurationStr);
 
-      // Plan expiry date set karo
-      user.planExpiryDate = new Date(
-        Date.now() + planDuration * 24 * 60 * 60 * 1000
-      );
+    //   let planExpiryDate = new Date();
+
+    //   if (planDurationStr.includes("minute")) {
+    //     const planDurationMinutes = parseInt(planDurationStr); // Minutes ko integer mein convert karo
+    //     planExpiryDate.setMinutes(
+    //       planExpiryDate.getMinutes() + planDurationMinutes
+    //     );
+    //   } else if (planDurationStr.includes("hour")) {
+    //     const planDurationMinutes = parseInt(planDurationStr) * 60; // Hours ko minutes mein convert karo
+    //     planExpiryDate.setMinutes(
+    //       planExpiryDate.getMinutes() + planDurationMinutes
+    //     );
+    //   } else if (planDurationStr.includes("day")) {
+    //     const planDurationDays = parseInt(planDurationStr); // Days ko integer mein convert karo
+    //     planExpiryDate.setDate(planExpiryDate.getDate() + planDurationDays);
+    //   } else if (planDurationStr.includes("month")) {
+    //     const planDurationMonths = parseInt(planDurationStr); // Months ko integer mein convert karo
+    //     planExpiryDate.setMonth(planExpiryDate.getMonth() + planDurationMonths);
+    //   } else {
+    //     return res.status(400).json({ message: "Unknown duration format." });
+    //   }
+
+    //   // Plan expiry date set karo
+    //   user.planExpiryDate = planExpiryDate;
+    //   // user.paymentPlanId = null;
+    //   // user.cardDetailsId = null;
+    //   // user.remainingDownloads = null;
+    //   user.cancelMemberShip = true;
+    //   user.autoRenew = false; // Auto renew ko false set karo
+
+    //   console.log(
+    //     "cancel membership user planExpiryDate: ",
+    //     user.planExpiryDate
+    //   );
+
+    //   await user.save();
+
+    //   // Save cancellation details
+    //   const cancellation = new CancelMembership(req.body);
+    //   await cancellation.save();
+    //   console.log("cancellation: ", cancellation);
+
+    //   res
+    //     .status(200)
+    //     .json({ message: "message created successfully", cancellation });
+    // }
+
+    if (user.paymentPlanId) {
+      // Set cancellation flags
       user.cancelMemberShip = true;
-      console.log(
-        "cancel membership user planExpiryDate: ",
-        user.planExpiryDate
-      );
+      user.autoRenew = false;
 
       await user.save();
 
       // Save cancellation details
-      const cancellation = new CancelMembership(req.body);
+      const cancellation = new CancelMembership({ userId, reason, anyMessage });
       await cancellation.save();
-      console.log("cancellation: ", cancellation);
-
-      res
-        .status(200)
-        .json({ message: "message  created successfully", cancellation });
+      res.status(200).json({
+        message: "Membership canceled successfully",
+        user,
+        cancellation,
+      });
+    } else {
+      res.status(400).json({ message: "No active payment plan to cancel." });
     }
   } catch (error) {
     console.error("Error canceling membership:", error.message);
+    res.status(500).json({ message: "Internal server error." });
   }
 };
 
-// Scheduler setup for checking expired plans
-cron.schedule("0 0 * * *", async () => {
-  // Runs every day at midnight
-  try {
-    const expiredUsers = await User.find({
-      cancelMemberShip: true,
-      planExpiryDate: { $lte: new Date() },
-    });
-    console.log("cancel member ship expiredUsers: ", expiredUsers);
+// // Scheduler setup for checking expired plans
+// cron.schedule("0 0 * * *", async () => {
+//   // Runs every day at midnight
+//   try {
+//     const expiredUsers = await User.find({
+//       cancelMemberShip: true,
+//       planExpiryDate: { $lte: new Date() },
+//     });
+//     console.log("cancel member ship expiredUsers: ", expiredUsers);
 
-    if (expiredUsers.length > 0) {
-      expiredUsers.forEach(async (user) => {
-        user.paymentPlanId = null;
-        user.remainingDownloads = 0;
-        user.cardDetailsId = null;
-        user.autoRenew = false;
-        await user.save();
-      });
-      console.log(`${expiredUsers.length} user(s) plan reset due to expiry.`);
-    }
-  } catch (error) {
-    console.error("Error checking expired plans:", error.message);
-  }
-});
+//     if (expiredUsers.length > 0) {
+//       expiredUsers.forEach(async (user) => {
+//         user.paymentPlanId = null;
+//         user.remainingDownloads = 0;
+//         user.cardDetailsId = null;
+//         user.autoRenew = false;
+//         await user.save();
+//       });
+//       console.log(`${expiredUsers.length} user(s) plan reset due to expiry.`);
+//     }
+//   } catch (error) {
+//     console.error("Error checking expired plans:", error.message);
+//   }
+// });
+
+// // Auto-Renew Functionality ke liye Scheduled Job
+// cron.schedule("0 * * * *", async () => {
+//   // Yeh job har ghante chalti hai
+//   console.log("Running Auto-Renew Job");
+
+//   const usersToRenew = await User.find({
+//     autoRenew: true,
+//     planExpiryDate: { $lte: new Date() },
+//   })
+//     .populate("paymentPlanId")
+//     .populate("cardDetailsId");
+
+//   for (let user of usersToRenew) {
+//     try {
+//       const plan = user.paymentPlanId;
+//       const card = user.cardDetailsId;
+
+//       // Card details validate karo
+//       validateCardDetails({
+//         cardNumber: card.cardNumber,
+//         expiryDate: card.expiryDate,
+//         cvv: card.cvv,
+//       });
+
+//       // Payment process karo
+//       await processPayment(
+//         {
+//           cardNumber: card.cardNumber,
+//           expiryDate: card.expiryDate,
+//           cvv: card.cvv,
+//         },
+//         plan.actualPrice
+//       );
+
+//       // Plan expiry date update karo
+//       const currentDate = new Date();
+//       const { duration, unit } = parseDuration(plan.duration);
+//       let newExpiryDate;
+//       if (unit === "month") {
+//         newExpiryDate = new Date(
+//           currentDate.setMonth(currentDate.getMonth() + duration)
+//         );
+//       } else if (unit === "minutes") {
+//         newExpiryDate = new Date(currentDate.getTime() + duration * 60000);
+//       }
+
+//       user.planExpiryDate = newExpiryDate;
+//       user.remainingDownloads += plan.bookDownload + plan.audioBookDownload;
+
+//       await user.save();
+
+//       console.log(`Plan auto-renewed for user: ${user.email}`);
+//     } catch (err) {
+//       console.log(
+//         `Auto-renew failed for user: ${user.email}, Error: ${err.message}`
+//       );
+//       // Agar payment fail ho jaye toh autoRenew ko off kar dete hain
+//       user.autoRenew = false;
+//       await user.save();
+//     }
+//   }
+// });
 
 module.exports = {
-  buyAndProcessPayment,
+  // buyAndProcessPayment,
   cancelMembership,
   getAllCancelMemberShip,
   getAllRemaningBooks,
