@@ -766,7 +766,7 @@ const downloadBook = async (req, res) => {
       return res
         .status(401)
         .json({ message: "Authorization token is required" });
-        
+
     if (
       !Array.isArray(downloadType) ||
       downloadType.length === 0 ||
@@ -907,8 +907,11 @@ const buyAndProcessPayment = async (req, res) => {
     const user = await User.findById(userId).populate("paymentPlanId");
     const newPlan = await paymentPlanModel.findById(paymentPlanId);
 
-    if (!user || !newPlan) {
-      return res.status(404).json({ message: "User or Plan not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (!newPlan) {
+      return res.status(404).json({ message: "New plan not found" });
     }
 
     // Promo code apply karo agar diya gaya hai
@@ -950,13 +953,27 @@ const buyAndProcessPayment = async (req, res) => {
         previousPlan.originalBookDownload - previousPlan.bookDownload;
       const usedAudioBookDownloads =
         previousPlan.originalAudioBookDownload - previousPlan.audioBookDownload;
+      console.log("usedBookDownloads: ", usedBookDownloads);
+      console.log("usedAudioBookDownloads: ", usedAudioBookDownloads);
 
       // Remaining downloads ko new plan mein merge karo
-      const remainingBookDownloads = previousPlan.bookDownload;
-      const remainingAudioBookDownloads = previousPlan.audioBookDownload;
+      updatedBookDownloads += previousPlan.bookDownload;
+      updatedAudioBookDownloads += previousPlan.audioBookDownload;
 
-      updatedBookDownloads += remainingBookDownloads;
-      updatedAudioBookDownloads += remainingAudioBookDownloads;
+      // // Pehle plan ke used downloads calculate karo
+      // const usedBookDownloads =
+      //   previousPlan.originalBookDownload - previousPlan.bookDownload;
+      // const usedAudioBookDownloads =
+      //   previousPlan.originalAudioBookDownload - previousPlan.audioBookDownload;
+
+      // // Remaining downloads ko new plan mein merge karo
+      // const remainingBookDownloads = previousPlan.bookDownload;
+      // const remainingAudioBookDownloads = previousPlan.audioBookDownload;
+
+      // updatedBookDownloads += remainingBookDownloads;
+      // updatedAudioBookDownloads += remainingAudioBookDownloads;
+
+
       // Purane plan ke downloads update karo
       await paymentPlanModel.findByIdAndUpdate(previousPlan._id, {
         // bookDownload: newPlan.bookDownload,
@@ -964,14 +981,11 @@ const buyAndProcessPayment = async (req, res) => {
         bookDownload: 0,
         audioBookDownload: 0,
       });
+
+      // Auto-renew ko false kar do agar plan delete ho chuka hai
+      user.autoRenew = false;
     }
-    console.log(
-      "Updated previous plan with new download counts"
-      // previousPlan
-      // bookDownload,
-      // audioBookDownload
-    );
-    // }
+  
 
     //  Duration parse karo
     const { duration, unit } = parseDuration(newPlan.duration);
@@ -987,13 +1001,8 @@ const buyAndProcessPayment = async (req, res) => {
     console.log("expiryDate: ", expiryDate);
 
     // const remainingDownloads = newPlan.bookDownload + newPlan.audioBookDownload;
-    const remainingDownloads = updatedBookDownloads + updatedAudioBookDownloads;
-    console.log("remainingDownloads: ", remainingDownloads);
-    // const remainingDownloads =
-    //   user.bookDownload +
-    //   user.audioBookDownload +
-    //   newPlan.bookDownload +
-    //   newPlan.audioBookDownload;
+    // const remainingDownloads = updatedBookDownloads + updatedAudioBookDownloads;
+    // console.log("remainingDownloads: ", remainingDownloads);
 
     // User ki information update karo
     user.set({
@@ -1001,9 +1010,7 @@ const buyAndProcessPayment = async (req, res) => {
       paymentPlanId: newPlan._id,
       cardDetailsId: card._id,
       downloadToken: crypto.randomBytes(50).toString("hex"),
-      remainingDownloads,
-      // bookDownload: newPlan.bookDownload,
-      // audioBookDownload: newPlan.audioBookDownload,
+      remainingDownloads: updatedBookDownloads + updatedAudioBookDownloads,
       bookDownload: updatedBookDownloads,
       audioBookDownload: updatedAudioBookDownloads,
       autoRenew: true,
@@ -1022,80 +1029,11 @@ const buyAndProcessPayment = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in buyAndProcessPayment:", error);
-    res
-      .status(500)
-      .json({ message: "Something went wrong", error: error.message });
+    res.status(500).json({ message: "Something went wrong", error: error.message });
   }
 };
 
-// // // Auto-Renew Functionality ke liye Scheduled Job
-// cron.schedule("*/5 * * * *", async () => {
-//   // Yeh job har ghante chalti hai
-//   console.log("Running Auto-Renew Job");
 
-//   const usersToRenew = await User.find({
-//     autoRenew: true,
-//     planExpiryDate: { $lte: new Date() },
-//   })
-//     .populate("paymentPlanId")
-//     .populate("cardDetailsId");
-//   console.log("usersToRenew: ", usersToRenew);
-
-//   for (let user of usersToRenew) {
-//     try {
-//       const plan = user.paymentPlanId;
-//       console.log("auto renew plan: ", plan);
-//       const card = user.cardDetailsId;
-//       console.log("auto renew card: ", card);
-
-//       if (!plan || !card) {
-//         console.log(
-//           `Skipping user: ${user.email}. Plan or card details missing.`
-//         );
-//         continue;
-//       }
-
-//       // Card details validate karo
-//       // validateCardDetails({
-//       //   cardNumber: card.cardNumber,
-//       //   expiryDate: card.expiryDate,
-//       //   cvv: card.cvv,
-//       // });
-
-//       // Payment process karo
-//       await processPayment(
-//         {
-//           cardNumber: card.cardNumber,
-//           expiryDate: card.expiryDate,
-//           cvv: card.cvv,
-//         },
-//         plan.actualPrice
-//       );
-
-//       // Plan expiry date update karo
-//       const currentDate = new Date();
-//       const { duration, unit } = parseDuration(plan.duration);
-//       console.log("duration, unit: ", plan.duration);
-//       const newExpiryDate = calculateExpiryDate(currentDate, duration, unit);
-//       console.log("newExpiryDate: ", newExpiryDate);
-//       user.planExpiryDate = newExpiryDate;
-
-//       // Optionally update downloads if required
-//       // user.remainingDownloads += plan.bookDownload + plan.audioBookDownload;
-
-//       await user.save();
-
-//       console.log(`Plan auto-renewed for user: ${user.email}`);
-//     } catch (err) {
-//       console.log(
-//         `Auto-renew failed for user: ${user.email}, Error: ${err.message}`
-//       );
-//       // Agar payment fail ho jaye toh autoRenew ko off kar dete hain
-//       user.autoRenew = false;
-//       await user.save();
-//     }
-//   }
-// });
 
 module.exports = {
   createPaymentPlan,

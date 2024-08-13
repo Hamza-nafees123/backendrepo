@@ -14,9 +14,6 @@ router.get(
 router.get("/book/search-coupon-code", promoCodeController.SearchCouponCode);
 router.put("/book/update-coupon-code/:id", promoCodeController.updateCouponCode);
 router.delete("/book/delete-coupon-code/:id", promoCodeController.deleteCouponCode);
-// Middleware to check promo code validity before applying
-router.post('/book/apply', promoCodeController.checkPromoCodeValidity, (req, res) => {
-    res.status(200).json({ message: 'Promo code is valid' });
-});
+
 
 module.exports = router;
