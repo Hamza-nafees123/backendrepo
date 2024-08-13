@@ -102,7 +102,7 @@ app.use("/api", homePageSelectedRoutes); // Promo routes ko set kar rahe hain
 //     expiryDate.setFullYear(expiryDate.getFullYear() + duration);
 //   }
 
-//   return expiryDate;
+//   return expiryDatee;
 // };
 
 // const processPayment = async (cardDetails, amount) => {
@@ -201,7 +201,8 @@ cron.schedule("*/5 * * * *", async () => {
     const expiredUsers = await User.find({
       cancelMemberShip: true,
       planExpiryDate: { $lte: new Date() },
-    }).populate("paymentPlanId")
+    })
+      .populate("paymentPlanId")
       .populate("cardDetailsId");
     console.log("cancel member ship expiredUsers: ", expiredUsers);
 
