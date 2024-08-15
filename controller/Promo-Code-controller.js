@@ -264,14 +264,14 @@ const SearchCouponCode = async (req, res, next) => {
     if (now.isBefore(start)) {
       return res.status(400).json({
         status: false,
-        message: "Coupon abhi tak active nahi hua",
+        message: "Promo code is not active",
       });
     }
 
     if (end && now.isAfter(end)) {
       return res.status(400).json({
         status: false,
-        message: "Coupon expire ho chuka hai",
+        message: "The Promo code has expired",
       });
     }
 
