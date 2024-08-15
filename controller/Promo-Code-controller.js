@@ -71,7 +71,9 @@ const addCouponCodeDiscount = async (req, res) => {
 
   // Dates ko validate karo
   const start = moment(startDate, "YYYY-MM-DD", true);
+  console.log("StartDate :", start)
   const end = endDate ? moment(endDate, "YYYY-MM-DD", true) : null;
+  console.log("endtDate :", end)
 
   if (!start.isValid()) {
     return res.status(400).json({
